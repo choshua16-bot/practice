@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>마케팅 캠페인 캘린더</title>
+<style>
+  :root {
+    --bg: #f9fafc;
+    --card: #ffffff;
+    --primary: #4f46e5;
+    --primary-light: #eef2ff;
+    --border: #e5e7eb;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --mms: #f59e0b;
+    --push: #10b981;
+    --email: #3b82f6;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+  }
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .header h1 { font-size: 24px; }
+  .header .actions { display: flex; gap: 12px; align-items: center; }
+  .btn {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: 0.15s;
+  }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: #4338ca; }
+  .btn-secondary { background: #fff; color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: #f9fafb; }
+  .btn-danger { background: #ef4444; color: #fff; }
+  .btn-danger:hover { background: #dc2626; }
+
+  /* Calendar */
+  .calendar-wrap { background: var(--card); border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .cal-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+  .cal-nav h2 { font-size: 18px; min-width: 140px; text-align: center; }
+  .cal-nav .nav-btns { display: flex; gap: 8px; align-items: center; }
+  .cal-nav select {
+    padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 14px; font-weight: 600; cursor: pointer; outline: none; background: #fff;
+  }
+  .cal-nav select:focus { border-color: var(--primary); }
+  .weekdays, .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .weekdays div { text-align: center; font-weight: 600; color: var(--muted); padding: 8px 0; font-size: 13px; }
+  .weekdays div.sun { color: #ef4444; }
+  .weekdays div.sat { color: #3b82f6; }
+  .day {
+    min-height: 110px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px;
+    cursor: pointer;
+    transition: 0.12s;
+    overflow-y: auto;
+  }
+  .day:hover { border-color: var(--primary); background: var(--primary-light); }
+  .day.other-month { opacity: 0.35; }
+  .day.today { border-color: var(--primary); border-width: 2px; }
+  .day .date-num { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .day .date-num.sun { color: #ef4444; }
+  .day .date-num.sat { color: #3b82f6; }
+  .event {
+    font-size: 11px;
+    border-radius: 4px;
+    padding: 3px 6px;
+    margin-bottom: 3px;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+  .event.mms { background: var(--mms); }
+  .event.push { background: var(--push); }
+  .event.email { background: var(--email); }
+  .event.multi { background: #8b5cf6; }
+  .event:hover { opacity: 0.85; }
+
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.4);
+    justify-content: center; align-items: center;
+    z-index: 100;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: #fff; border-radius: 12px; padding: 28px;
+    width: 500px; max-width: 90vw; max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  }
+  .modal h3 { font-size: 18px; margin-bottom: 20px; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--muted); }
+  .form-group input, .form-group select {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+    border-radius: 8px; font-size: 14px; outline: none;
+  }
+  .form-group input:focus, .form-group select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+  .date-range { display: flex; gap: 8px; align-items: center; }
+  .date-range input { flex: 1; }
+  .date-range span { color: var(--muted); font-weight: 600; }
+  .channel-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+  .channel-pill {
+    padding: 8px 16px; border: 2px solid var(--border); border-radius: 20px;
+    cursor: pointer; font-size: 13px; font-weight: 600; transition: 0.15s; user-select: none;
+  }
+  .channel-pill.active { border-color: var(--primary); background: var(--primary-light); color: var(--primary); }
+  .channel-hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+
+  /* Legend */
+  .legend { display: flex; gap: 16px; margin-bottom: 12px; font-size: 13px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+  .legend-dot.mms { background: var(--mms); }
+  .legend-dot.push { background: var(--push); }
+  .legend-dot.email { background: var(--email); }
+  .legend-dot.multi { background: #8b5cf6; }
+
+  /* List view */
+  .list-section { margin-top: 24px; background: var(--card); border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .list-section h2 { font-size: 18px; margin-bottom: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { font-weight: 600; color: var(--muted); font-size: 13px; }
+  tr:hover { background: #f9fafb; }
+  .channel-badge { padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; color: #fff; display: inline-block; margin-right: 4px; }
+  .channel-badge.mms { background: var(--mms); }
+  .channel-badge.push { background: var(--push); }
+  .channel-badge.email { background: var(--email); }
+  .empty-msg { text-align: center; color: var(--muted); padding: 40px; }
+  .view-toggle { display: flex; gap: 4px; background: #f3f4f6; border-radius: 8px; padding: 4px; }
+  .view-toggle button { padding: 6px 14px; border: none; background: transparent; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .view-toggle button.active { background: #fff; color: var(--primary); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📅 마케팅 캠페인 캘린더</h1>
+  <div class="actions">
+    <div class="view-toggle">
+      <button id="viewCal" class="active" onclick="switchView('calendar')">캘린더</button>
+      <button id="viewList" onclick="switchView('list')">목록</button>
+    </div>
+    <button class="btn btn-primary" onclick="openModal()">+ 캠페인 등록</button>
+  </div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><span class="legend-dot mms"></span> MMS</div>
+  <div class="legend-item"><span class="legend-dot push"></span> App Push</div>
+  <div class="legend-item"><span class="legend-dot email"></span> Email</div>
+  <div class="legend-item"><span class="legend-dot multi"></span> 복수 채널</div>
+</div>
+
+<!-- Calendar View -->
+<div id="calendarView" class="calendar-wrap">
+  <div class="cal-nav">
+    <button class="btn btn-secondary" onclick="changeMonth(-1)">◀ 이전</button>
+    <h2 id="monthLabel"></h2>
+    <div class="nav-btns">
+      <select id="yearSelect" onchange="jumpToMonth()"></select>
+      <select id="monthSelect" onchange="jumpToMonth()">
+        <option value="0">1월</option><option value="1">2월</option><option value="2">3월</option>
+        <option value="3">4월</option><option value="4">5월</option><option value="5">6월</option>
+        <option value="6">7월</option><option value="7">8월</option><option value="8">9월</option>
+        <option value="9">10월</option><option value="10">11월</option><option value="11">12월</option>
+      </select>
+      <button class="btn btn-secondary" onclick="goToday()">오늘</button>
+      <button class="btn btn-secondary" onclick="changeMonth(1)">다음 ▶</button>
+    </div>
+  </div>
+  <div class="weekdays">
+    <div class="sun">일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div class="sat">토</div>
+  </div>
+  <div class="days" id="daysGrid"></div>
+</div>
+
+<!-- List View -->
+<div id="listView" class="list-section" style="display:none;">
+  <h2>캠페인 목록</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>부서</th>
+        <th>발송 기간</th>
+        <th>캠페인명</th>
+        <th>발송 채널</th>
+        <th>예상 모수</th>
+        <th>관리</th>
+      </tr>
+    </thead>
+    <tbody id="listBody"></tbody>
+  </table>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3 id="modalTitle">캠페인 등록</h3>
+    <div class="form-group">
+      <label>부서</label>
+      <input type="text" id="dept" placeholder="예: 마케팅팀, CRM팀, 상품기획팀">
+    </div>
+    <div class="form-group">
+      <label>발송 기간</label>
+      <div class="date-range">
+        <input type="date" id="startDate">
+        <span>~</span>
+        <input type="date" id="endDate">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>캠페인명</label>
+      <input type="text" id="campaignName" placeholder="예: 11월 VIP 타임세일 안내">
+    </div>
+    <div class="form-group">
+      <label>발송 채널 (복수 선택 가능)</label>
+      <div class="channel-pills" id="channelPills">
+        <div class="channel-pill" data-ch="MMS" onclick="toggleChannel(this)">MMS</div>
+        <div class="channel-pill" data-ch="App Push" onclick="toggleChannel(this)">App Push</div>
+        <div class="channel-pill" data-ch="Email" onclick="toggleChannel(this)">Email</div>
+      </div>
+      <div class="channel-hint">여러 채널을 동시에 선택할 수 있습니다. 선택한 채널 수만큼 색상이 조합됩니다.</div>
+    </div>
+    <div class="form-group">
+      <label>예상 모수 (명)</label>
+      <input type="number" id="audience" placeholder="예: 50000" min="0">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" id="deleteBtn" style="display:none; margin-right:auto;" onclick="deleteCampaign()">삭제</button>
+      <button class="btn btn-secondary" onclick="closeModal()">취소</button>
+      <button class="btn btn-primary" onclick="saveCampaign()">저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let campaigns = JSON.parse(localStorage.getItem('campaigns_v2') || '[]');
+let currentDate = new Date();
+let selectedChannels = [];
+let editingId = null;
+
+function save() { localStorage.setItem('campaigns_v2', JSON.stringify(campaigns)); }
+
+// ── 채널 색상 판별 ──
+function channelClass(channelsStr) {
+  const list = channelsStr.split(',').map(s => s.trim());
+  if (list.length > 1) return 'multi';
+  if (list[0] === 'MMS') return 'mms';
+  if (list[0] === 'App Push') return 'push';
+  return 'email';
+}
+function channelShort(channelsStr) {
+  const map = { 'MMS': 'M', 'App Push': 'P', 'Email': 'E' };
+  return channelsStr.split(',').map(c => map[c.trim()] || '?').join('+');
+}
+
+// ── 연도/월 드롭다운 초기화 ──
+function initSelectors() {
+  const yearSel = document.getElementById('yearSelect');
+  const thisYear = new Date().getFullYear();
+  for (let y = thisYear - 3; y <= thisYear + 5; y++) {
+    const opt = document.createElement('option');
+    opt.value = y;
+    opt.textContent = y + '년';
+    yearSel.appendChild(opt);
+  }
+  syncSelectors();
+}
+function syncSelectors() {
+  document.getElementById('yearSelect').value = currentDate.getFullYear();
+  document.getElementById('monthSelect').value = currentDate.getMonth();
+}
+function jumpToMonth() {
+  const y = parseInt(document.getElementById('yearSelect').value);
+  const m = parseInt(document.getElementById('monthSelect').value);
+  currentDate = new Date(y, m, 1);
+  renderCalendar();
+}
+
+// ── 캠페인이 특정 날짜에 해당하는지 판별 (기간) ──
+function campaignOnDate(c, dateStr) {
+  return c.startDate <= dateStr && c.endDate >= dateStr;
+}
+
+// ── 캘린더 렌더링 ──
+function renderCalendar() {
+  const grid = document.getElementById('daysGrid');
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  document.getElementById('monthLabel').textContent = `${year}년 ${month + 1}월`;
+  syncSelectors();
+
+  const firstDay = new Date(year, month, 1).getDay();
+  const lastDate = new Date(year, month + 1, 0).getDate();
+  const prevLastDate = new Date(year, month, 0).getDate();
+  const todayStr = new Date().toDateString();
+
+  grid.innerHTML = '';
+  for (let i = firstDay - 1; i >= 0; i--) {
+    grid.appendChild(makeDay(prevLastDate - i, true, null));
+  }
+  for (let d = 1; d <= lastDate; d++) {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const dayDiv = makeDay(d, false, dateStr);
+    if (new Date(year, month, d).toDateString() === todayStr) dayDiv.classList.add('today');
+    const dayEvents = campaigns.filter(c => campaignOnDate(c, dateStr));
+    dayEvents.forEach(ev => {
+      const el = document.createElement('div');
+      el.className = `event ${channelClass(ev.channels)}`;
+      el.textContent = `${channelShort(ev.channels)} ${ev.campaignName}`;
+      el.title = `${ev.campaignName}\n부서: ${ev.dept}\n기간: ${ev.startDate} ~ ${ev.endDate}\n채널: ${ev.channels}\n예상 모수: ${Number(ev.audience).toLocaleString()}명`;
+      el.onclick = (e) => { e.stopPropagation(); openModal(ev.id); };
+      dayDiv.appendChild(el);
+    });
+    grid.appendChild(dayDiv);
+  }
+  const totalCells = firstDay + lastDate;
+  const remain = (7 - (totalCells % 7)) % 7;
+  for (let d = 1; d <= remain; d++) {
+    grid.appendChild(makeDay(d, true, null));
+  }
+}
+
+function makeDay(num, other, dateStr) {
+  const div = document.createElement('div');
+  div.className = 'day' + (other ? ' other-month' : '');
+  const dayNum = document.createElement('div');
+  dayNum.className = 'date-num';
+  dayNum.textContent = num;
+  const jsDate = dateStr ? new Date(dateStr) : null;
+  if (jsDate) {
+    const dow = jsDate.getDay();
+    if (dow === 0) dayNum.classList.add('sun');
+    if (dow === 6) dayNum.classList.add('sat');
+  }
+  div.appendChild(dayNum);
+  if (dateStr) div.onclick = () => openModal(null, dateStr);
+  return div;
+}
+
+// ── 목록 뷰 ──
+function renderList() {
+  const tbody = document.getElementById('listBody');
+  if (campaigns.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-msg">등록된 캠페인이 없습니다.</td></tr>';
+    return;
+  }
+  const sorted = [...campaigns].sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+  tbody.innerHTML = sorted.map(c => `
+    <tr>
+      <td>${c.dept}</td>
+      <td>${c.startDate}${c.startDate !== c.endDate ? ' ~ ' + c.endDate : ''}</td>
+      <td>${c.campaignName}</td>
+      <td>${c.channels.split(',').map(ch => `<span class="channel-badge ${channelClass(ch.trim())}">${ch.trim()}</span>`).join(' ')}</td>
+      <td>${Number(c.audience).toLocaleString()}명</td>
+      <td><button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" onclick="openModal(${c.id})">수정</button></td>
+    </tr>
+  `).join('');
+}
+
+// ── 월 이동 ──
+function changeMonth(dir) {
+  currentDate.setMonth(currentDate.getMonth() + dir);
+  renderCalendar();
+}
+function goToday() {
+  currentDate = new Date();
+  renderCalendar();
+}
+
+// ── 뷰 전환 ──
+function switchView(view) {
+  if (view === 'calendar') {
+    document.getElementById('calendarView').style.display = '';
+    document.getElementById('listView').style.display = 'none';
+    document.getElementById('viewCal').classList.add('active');
+    document.getElementById('viewList').classList.remove('active');
+  } else {
+    document.getElementById('calendarView').style.display = 'none';
+    document.getElementById('listView').style.display = '';
+    document.getElementById('viewCal').classList.remove('active');
+    document.getElementById('viewList').classList.add('active');
+    renderList();
+  }
+}
+
+// ── 채널 선택 (복수) ──
+function toggleChannel(el) {
+  el.classList.toggle('active');
+  const ch = el.dataset.ch;
+  if (el.classList.contains('active')) {
+    if (!selectedChannels.includes(ch)) selectedChannels.push(ch);
+  } else {
+    selectedChannels = selectedChannels.filter(c => c !== ch);
+  }
+}
+
+// ── 모달 ──
+function openModal(id, presetDate) {
+  editingId = id;
+  selectedChannels = [];
+  document.querySelectorAll('.channel-pill').forEach(p => p.classList.remove('active'));
+  document.getElementById('modalTitle').textContent = '캠페인 등록';
+  document.getElementById('deleteBtn').style.display = 'none';
+  document.getElementById('dept').value = '';
+  document.getElementById('startDate').value = presetDate || '';
+  document.getElementById('endDate').value = presetDate || '';
+  document.getElementById('campaignName').value = '';
+  document.getElementById('audience').value = '';
+
+  if (id) {
+    const c = campaigns.find(c => c.id === id);
+    if (c) {
+      document.getElementById('modalTitle').textContent = '캠페인 수정';
+      document.getElementById('deleteBtn').style.display = '';
+      document.getElementById('dept').value = c.dept;
+      document.getElementById('startDate').value = c.startDate;
+      document.getElementById('endDate').value = c.endDate;
+      document.getElementById('campaignName').value = c.campaignName;
+      document.getElementById('audience').value = c.audience;
+      c.channels.split(',').map(s => s.trim()).forEach(ch => {
+        const pill = document.querySelector(`.channel-pill[data-ch="${ch}"]`);
+        if (pill) { pill.classList.add('active'); selectedChannels.push(ch); }
+      });
+    }
+  }
+  document.getElementById('modalOverlay').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('active');
+  editingId = null;
+}
+
+function saveCampaign() {
+  const dept = document.getElementById('dept').value.trim();
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  const campaignName = document.getElementById('campaignName').value.trim();
+  const audience = document.getElementById('audience').value;
+
+  if (!dept || !startDate || !endDate || !campaignName || selectedChannels.length === 0 || !audience) {
+    alert('모든 항목을 입력해 주세요.');
+    return;
+  }
+  if (startDate > endDate) {
+    alert('종료일은 시작일 이후여야 합니다.');
+    return;
+  }
+
+  const data = {
+    id: editingId || Date.now(),
+    dept, startDate, endDate, campaignName,
+    channels: selectedChannels.join(', '),
+    audience: Number(audience)
+  };
+
+  if (editingId) {
+    const idx = campaigns.findIndex(c => c.id === editingId);
+    campaigns[idx] = data;
+  } else {
+    campaigns.push(data);
+  }
+  save();
+  closeModal();
+  renderCalendar();
+  if (document.getElementById('listView').style.display !== 'none') renderList();
+}
+
+function deleteCampaign() {
+  if (!editingId) return;
+  if (!confirm('이 캠페인을 삭제하시겠습니까?')) return;
+  campaigns = campaigns.filter(c => c.id !== editingId);
+  save();
+  closeModal();
+  renderCalendar();
+  if (document.getElementById('listView').style.display !== 'none') renderList();
+}
+
+document.getElementById('modalOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'modalOverlay') closeModal();
+});
+
+initSelectors();
+renderCalendar();
+</script>
+</body>
+</html>

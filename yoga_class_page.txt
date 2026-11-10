@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+</head>
+<body>
+<title>Spring Flow Yoga Class Reservation</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&display=swap">
+<style>
+/* Layout: 한 장의 조용한 종이 위에 상단 탭 3개(신청 / 내 신청 / 관리). 신청은 왼쪽 클래스 목록 + 오른쪽 상세·폼, 좁은 화면에선 한 줄. */
+:root{
+  --bg:#f2f4f1; --paper:#fbfcfa; --ink:#27322c; --muted:#6b776f; --line:#dbe1dc;
+  --sage:#4f6f5c; --sage-soft:#e3ebe5; --dusk:#7d7899; --dusk-soft:#ecebf3;
+  --ok:#3f7a55; --ok-soft:#e0efe5; --warn:#9a7a2e; --warn-soft:#f5eedb; --bad:#a14f4f; --bad-soft:#f5e3e3;
+  --display:"Gowun Batang", "Nanum Myeongjo", "AppleMyungjo", serif;
+  --body:"Gowun Dodum", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#151a17; --paper:#1c231f; --ink:#e4ebe6; --muted:#9aa79f; --line:#2f3a34;
+  --sage:#8fb59c; --sage-soft:#24332a; --dusk:#aaa5cc; --dusk-soft:#28273a;
+  --ok:#86c29b; --ok-soft:#1f3326; --warn:#d8b765; --warn-soft:#352e1b; --bad:#e09595; --bad-soft:#3a2323; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#151a17; --paper:#1c231f; --ink:#e4ebe6; --muted:#9aa79f; --line:#2f3a34;
+  --sage:#8fb59c; --sage-soft:#24332a; --dusk:#aaa5cc; --dusk-soft:#28273a;
+  --ok:#86c29b; --ok-soft:#1f3326; --warn:#d8b765; --warn-soft:#352e1b; --bad:#e09595; --bad-soft:#3a2323; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.7;word-break:keep-all}
+.wrap{max-width:1080px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;padding-bottom:20px;border-bottom:1px solid var(--line)}
+.brand h1{font-family:var(--display);font-weight:700;font-size:clamp(26px,4vw,34px);margin:0;letter-spacing:-.01em;text-wrap:balance}
+.brand p{margin:2px 0 0;color:var(--muted);font-size:14px}
+nav.tabs{display:flex;gap:4px;flex-wrap:wrap}
+nav.tabs a{padding:8px 14px;border-radius:999px;color:var(--muted);text-decoration:none;font-size:14px}
+nav.tabs a[aria-current="page"]{background:var(--sage-soft);color:var(--sage)}
+nav.tabs a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,.cls:focus-visible{outline:2px solid var(--sage);outline-offset:2px}
+.notice{margin:20px 0 0;padding:12px 16px;border-radius:var(--r);background:var(--warn-soft);color:var(--warn);font-size:14px}
+section.view{padding-top:28px}
+h2{font-family:var(--display);font-weight:700;font-size:22px;margin:0 0 4px;text-wrap:balance}
+h3{font-family:var(--display);font-weight:700;font-size:18px;margin:0}
+.sub{color:var(--muted);margin:0 0 20px;font-size:14px}
+.label{font-size:12px;letter-spacing:.08em;color:var(--muted)}
+.grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:28px;align-items:start}
+@media (max-width:820px){.grid{grid-template-columns:1fr}}
+.list{display:flex;flex-direction:column;gap:10px}
+.cls{all:unset;box-sizing:border-box;display:grid;grid-template-columns:62px 1fr;gap:14px;padding:14px;border:1px solid var(--line);border-radius:var(--r);background:var(--paper);cursor:pointer}
+.cls[aria-pressed="true"]{border-color:var(--sage);box-shadow:0 0 0 1px var(--sage)}
+.cls[aria-disabled="true"]{opacity:.55;cursor:not-allowed}
+.date{display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:8px;background:var(--sage-soft);color:var(--sage);line-height:1.2;padding:6px 0}
+.date b{font-family:var(--display);font-size:22px}
+.date span{font-size:12px}
+.cls .t{font-family:var(--display);font-weight:700;font-size:16px}
+.cls .m{color:var(--muted);font-size:13px}
+.seats{font-variant-numeric:tabular-nums}
+.pill{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;white-space:nowrap}
+.p-pending{background:var(--warn-soft);color:var(--warn)}
+.p-confirmed{background:var(--ok-soft);color:var(--ok)}
+.p-canceled{background:var(--bad-soft);color:var(--bad)}
+.p-open{background:var(--sage-soft);color:var(--sage)}
+.p-closed{background:var(--dusk-soft);color:var(--dusk)}
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:24px}
+@media (max-width:480px){.panel{padding:18px}}
+.detail{display:grid;gap:14px;margin-bottom:24px;padding-bottom:22px;border-bottom:1px dashed var(--line)}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px 18px;margin:0}
+.facts div{min-width:0}
+.facts dt{font-size:12px;color:var(--muted);letter-spacing:.04em}
+.facts dd{margin:0;font-variant-numeric:tabular-nums}
+.box{padding:12px 14px;border-radius:8px;background:var(--dusk-soft);font-size:14px;white-space:pre-wrap}
+.box.caution{background:var(--warn-soft);color:var(--ink)}
+.box .label{display:block;margin-bottom:2px}
+form{display:grid;gap:18px}
+.field{display:grid;gap:6px;min-width:0}
+.field>label,.legend{font-size:14px}
+.req{color:var(--bad);margin-left:2px}
+.opt{color:var(--muted);font-size:12px;margin-left:4px}
+input[type=text],input[type=tel],input[type=date],input[type=time],input[type=number],select,textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+textarea{min-height:84px;resize:vertical}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:520px){.row2{grid-template-columns:1fr}}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:14px;cursor:pointer}
+.check input{margin-top:5px;accent-color:var(--sage);width:16px;height:16px;flex:none}
+.consent{font-size:13px;color:var(--muted);background:var(--bg);border-radius:8px;padding:10px 12px}
+.account{all:unset;box-sizing:border-box;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:14px 16px;border-radius:10px;border:1px dashed var(--sage);background:var(--sage-soft);cursor:pointer}
+.account .num{font-family:var(--display);font-size:18px;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.account .hint{font-size:12px;color:var(--sage)}
+.err{color:var(--bad);font-size:13px;min-height:0}
+.err:empty{display:none}
+.btn{font:inherit;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:999px;padding:8px 16px;cursor:pointer;font-size:14px}
+.btn.primary{background:var(--sage);border-color:var(--sage);color:var(--paper);padding:12px 22px;font-size:15px}
+.btn.small{padding:4px 12px;font-size:13px}
+.btn.ok{color:var(--ok);border-color:var(--ok)}
+.btn.bad{color:var(--bad);border-color:var(--bad)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.empty{padding:28px 20px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:var(--r)}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:999px;font-size:14px;z-index:20;max-width:calc(100% - 32px)}
+.apps{display:grid;gap:14px}
+.app{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:18px 20px;display:grid;gap:10px}
+.app-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:baseline}
+.kv{display:grid;grid-template-columns:110px 1fr;gap:4px 12px;font-size:14px;margin:0}
+.kv dt{color:var(--muted)}.kv dd{margin:0;min-width:0;white-space:pre-wrap}
+@media (max-width:480px){.kv{grid-template-columns:1fr}.kv dd{margin-bottom:6px}}
+.subtabs{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap}
+.subtabs button{font:inherit;font-size:14px;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:999px;padding:6px 14px;cursor:pointer}
+.subtabs button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.stats{display:flex;flex-wrap:wrap;gap:24px;margin-bottom:18px}
+.stats div{display:grid}
+.stats b{font-family:var(--display);font-size:26px;font-variant-numeric:tabular-nums;line-height:1.2}
+.stats span{font-size:12px;color:var(--muted)}
+.filters{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+.filters>*{flex:1 1 160px;width:auto}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+table{border-collapse:collapse;width:100%;min-width:760px;font-size:14px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:400;font-size:12px;color:var(--muted);letter-spacing:.04em;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.memo{font-size:13px;color:var(--muted);max-width:240px;white-space:pre-wrap}
+.adm-classes{display:grid;gap:10px;margin-top:22px}
+.adm-class{display:flex;flex-wrap:wrap;gap:10px 16px;justify-content:space-between;align-items:center;padding:14px 16px;background:var(--paper);border:1px solid var(--line);border-radius:12px}
+.adm-class .info{min-width:0;flex:1 1 240px}
+@media (prefers-reduced-motion:no-preference){.cls,.btn,nav.tabs a{transition:background .15s,border-color .15s,box-shadow .15s}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Spring Flow Yoga Class Reservation</h1>
+      <p>요가 원데이 클래스 신청</p>
+    </div>
+    <nav class="tabs" aria-label="페이지">
+      <a href="#apply" id="tab-apply">클래스 신청</a>
+      <a href="#my" id="tab-my">내 신청 내역</a>
+      <a href="#admin" id="tab-admin" hidden>관리</a>
+    </nav>
+  </header>
+  <p class="notice" id="globalNotice" hidden></p>
+
+  <!-- 1. 신청 -->
+  <section class="view" id="view-apply">
+    <div class="grid">
+      <div>
+        <h2>수업 시간표</h2>
+        <p class="sub">클래스를 눌러 자세한 안내를 확인하세요.</p>
+        <div class="list" id="classList"><div class="empty">클래스 일정을 불러오는 중이에요.</div></div>
+      </div>
+      <div class="panel">
+        <div class="detail" id="classDetail" hidden></div>
+        <h2>신청서</h2>
+        <p class="sub">표시(<span class="req">*</span>)된 항목은 꼭 입력해 주세요.</p>
+        <form id="applyForm" novalidate>
+          <div class="field">
+            <label for="f-class">신청 클래스<span class="req">*</span></label>
+            <select id="f-class"><option value="">클래스를 선택하세요</option></select>
+            <div class="err" data-err="classId"></div>
+          </div>
+          <div class="row2">
+            <div class="field">
+              <label for="f-name">이름<span class="req">*</span></label>
+              <input type="text" id="f-name" autocomplete="name" placeholder="홍길동">
+              <div class="err" data-err="name"></div>
+            </div>
+            <div class="field">
+              <label for="f-phone">연락처<span class="req">*</span></label>
+              <input type="tel" id="f-phone" autocomplete="tel" inputmode="numeric" placeholder="010-0000-0000">
+              <div class="err" data-err="phone"></div>
+            </div>
+          </div>
+          <div class="field">
+            <div class="consent">수집 항목: 이름, 연락처 · 목적: 클래스 안내 및 일정 변경 연락 · 보유 기간: 클래스 종료 후 3개월. 동의하지 않으면 신청이 어려워요.</div>
+            <label class="check"><input type="checkbox" id="f-consent"> <span>연락을 위한 개인정보 수집·이용에 동의합니다.<span class="req">*</span></span></label>
+            <div class="err" data-err="consent"></div>
+          </div>
+          <div class="field">
+            <span class="legend">입금 안내<span class="req">*</span></span>
+            <button type="button" class="account" id="accountBtn" aria-label="계좌번호 복사">
+              <span><span class="label">기업은행 · 예금주 조은봄</span><br><span class="num" id="accountNum">010-8845-6475</span></span>
+              <span class="hint">눌러서 계좌번호 복사</span>
+            </button>
+            <p class="sub" style="margin:0" id="priceLine"></p>
+            <label class="check"><input type="checkbox" id="f-paid"> <span>위 계좌로 수강료를 입금했습니다.<span class="req">*</span></span></label>
+            <div class="err" data-err="paid"></div>
+          </div>
+          <div class="field">
+            <label for="f-depositor">입금자명<span class="req">*</span></label>
+            <input type="text" id="f-depositor" placeholder="입금하신 분의 이름">
+            <label class="check"><input type="checkbox" id="f-same"> <span>신청자 이름과 같아요</span></label>
+            <div class="err" data-err="depositor"></div>
+          </div>
+          <div class="field">
+            <label for="f-health">사전에 알아야 할 건강상의 이슈 · 부상<span class="opt">선택</span></label>
+            <textarea id="f-health" placeholder="예) 오른쪽 무릎 수술 이력이 있어 깊은 굴곡이 어려워요 / 임신 16주차"></textarea>
+          </div>
+          <div class="field">
+            <label for="f-expect">클래스를 통해 기대하는 것<span class="opt">선택</span></label>
+            <textarea id="f-expect" placeholder="예) 퇴근 후 굳은 어깨를 풀고 싶어요"></textarea>
+          </div>
+          <div class="err" id="formErr"></div>
+          <div class="actions">
+            <button type="submit" class="btn primary" id="submitBtn">신청하기</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. 내 신청 내역 -->
+  <section class="view" id="view-my" hidden>
+    <h2>내 신청 내역</h2>
+    <p class="sub">확정 전에는 신청 내용을 모두 고칠 수 있어요. 확정 후에는 연락처와 메모만 바꿀 수 있어요.</p>
+    <div class="apps" id="myApps"><div class="empty">신청 내역을 불러오는 중이에요.</div></div>
+  </section>
+
+  <!-- 3. 관리 -->
+  <section class="view" id="view-admin" hidden>
+    <h2>관리</h2>
+    <p class="sub">클래스를 열고, 들어온 신청을 확인해 확정하세요.</p>
+    <div class="subtabs">
+      <button type="button" id="st-apps" aria-pressed="true">신청 관리</button>
+      <button type="button" id="st-classes" aria-pressed="false">클래스 관리</button>
+    </div>
+
+    <div id="adm-apps">
+      <div class="stats" id="stats"></div>
+      <div class="filters">
+        <select id="flt-class" aria-label="클래스로 거르기"><option value="">모든 클래스</option></select>
+        <select id="flt-status" aria-label="상태로 거르기">
+          <option value="">모든 상태</option><option value="pending">확정 대기</option><option value="confirmed">확정</option><option value="canceled">취소</option>
+        </select>
+        <input type="text" id="flt-q" placeholder="이름 · 연락처 · 입금자명 검색" aria-label="검색">
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>신청일</th><th>클래스</th><th>이름</th><th>연락처</th><th>입금자명</th><th>건강 · 기대</th><th>상태</th><th>처리</th></tr></thead>
+          <tbody id="admRows"><tr><td colspan="8" class="memo">신청 내역을 불러오는 중이에요.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="adm-classes" hidden>
+      <div class="panel">
+        <h3 id="cfTitle">새 클래스 열기</h3>
+        <p class="sub" style="margin-top:4px">저장하면 신청 페이지에 바로 보여요.</p>
+        <form id="classForm" novalidate>
+          <div class="field"><label for="c-title">클래스 이름<span class="req">*</span></label><input type="text" id="c-title" placeholder="예) 저녁 하타 요가 · 어깨 열기"></div>
+          <div class="row2">
+            <div class="field"><label for="c-date">날짜<span class="req">*</span></label><input type="date" id="c-date"></div>
+            <div class="field"><label for="c-time">시작 시간<span class="req">*</span></label><input type="time" id="c-time"></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label for="c-dur">수련 시간(분)</label><input type="number" id="c-dur" min="10" step="5" value="60"></div>
+            <div class="field"><label for="c-cap">정원(명)<span class="req">*</span></label><input type="number" id="c-cap" min="1" value="8"></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label for="c-price">수강료(원)<span class="req">*</span></label><input type="number" id="c-price" min="0" step="1000" value="25000"></div>
+            <div class="field"><label for="c-level">난이도</label>
+              <select id="c-level"><option>누구나</option><option>입문</option><option>초급</option><option>중급</option></select></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label for="c-place">장소</label><input type="text" id="c-place" placeholder="예) 영등포 숨결 스튜디오 3층"></div>
+            <div class="field"><label for="c-teacher">강사</label><input type="text" id="c-teacher" placeholder="예) 조은봄"></div>
+          </div>
+          <div class="field"><label for="c-desc">클래스 소개</label><textarea id="c-desc" placeholder="어떤 흐름으로 진행되는지, 누구에게 맞는지 적어 주세요."></textarea></div>
+          <div class="field"><label for="c-bring">준비물</label><input type="text" id="c-bring" placeholder="예) 편한 옷, 물. 매트는 대여해 드려요."></div>
+          <div class="field"><label for="c-notice">주의사항</label><textarea id="c-notice" placeholder="예) 수업 2시간 전부터 식사를 피해 주세요. 시작 10분 전까지 도착해 주세요."></textarea></div>
+          <label class="check"><input type="checkbox" id="c-open" checked> <span>신청 받기 (끄면 신청 페이지에서 숨겨져요)</span></label>
+          <div class="err" id="cfErr"></div>
+          <div class="actions">
+            <button type="submit" class="btn primary" id="cfSubmit">클래스 열기</button>
+            <button type="button" class="btn" id="cfCancel" hidden>수정 취소</button>
+          </div>
+        </form>
+      </div>
+      <div class="adm-classes" id="admClasses"></div>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const ACCOUNT = "01088456475";
+  const STATUS = { pending: "확정 대기", confirmed: "확정", canceled: "취소" };
+  const DOW = ["일","월","화","수","목","금","토"];
+  const won = (n) => Number(n || 0).toLocaleString("ko-KR") + "원";
+  const fmtDate = (d) => { if (!d) return ""; const x = new Date(d + "T00:00:00"); return `${x.getMonth()+1}월 ${x.getDate()}일 (${DOW[x.getDay()]})`; };
+  const fmtTs = (t) => { if (!t) return ""; const x = new Date(t); return `${x.getMonth()+1}.${x.getDate()} ${String(x.getHours()).padStart(2,"0")}:${String(x.getMinutes()).padStart(2,"0")}`; };
+  const endTime = (s, m) => { if (!s) return ""; const [h, mi] = s.split(":").map(Number); const t = h*60+mi+Number(m||0); return `${String(Math.floor(t/60)%24).padStart(2,"0")}:${String(t%60).padStart(2,"0")}`; };
+  const fmtPhone = (v) => { const d = v.replace(/\D/g, "").slice(0, 11); if (d.length < 4) return d; if (d.length < 8) return d.slice(0,3)+"-"+d.slice(3); return d.slice(0,3)+"-"+d.slice(3, d.length-4)+"-"+d.slice(-4); };
+  const phoneOk = (v) => /^01[016789]-?\d{3,4}-?\d{4}$/.test(v.trim());
+
+  let toastT;
+  function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 2400); }
+  function notice(msg) { const n = $("#globalNotice"); n.textContent = msg || ""; n.hidden = !msg; }
+
+  // ---------- state ----------
+  const S = { db: null, uid: null, isAdmin: false, classes: [], myItems: {}, allApps: [], selected: null, editing: null, editClass: null, admTab: "apps" };
+
+  // ---------- routing ----------
+  const VIEWS = ["apply", "my", "admin"];
+  function route() {
+    let v = (location.hash || "#apply").slice(1);
+    if (!VIEWS.includes(v) || (v === "admin" && !S.isAdmin)) v = "apply";
+    VIEWS.forEach((k) => { $("#view-" + k).hidden = k !== v; $("#tab-" + k).toggleAttribute("aria-current", k === v); if (k === v) $("#tab-" + k).setAttribute("aria-current", "page"); });
+  }
+  window.addEventListener("hashchange", route);
+  route();
+
+  // ---------- account copy ----------
+  $("#accountBtn").addEventListener("click", () => {
+    const done = () => toast("계좌번호를 복사했어요 · 기업은행 " + ACCOUNT);
+    try {
+      navigator.clipboard.writeText(ACCOUNT).then(done, fallback);
+    } catch (e) { fallback(); }
+    function fallback() {
+      const r = document.createRange(); r.selectNodeContents($("#accountNum"));
+      const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+      toast("복사가 막혀 있어요. 선택된 번호를 직접 복사해 주세요.");
+    }
+  });
+
+  // ---------- classes rendering ----------
+  const openClasses = () => S.classes.filter((c) => c.open).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  const remain = (c) => Math.max(0, Number(c.capacity || 0) - Number(c.confirmedCount || 0));
+  const classById = (id) => S.classes.find((c) => c.id === id);
+
+  function renderClassList() {
+    const list = $("#classList"), cls = openClasses();
+    if (!cls.length) { list.innerHTML = `<div class="empty">지금은 열린 클래스가 없어요.<br>새 일정이 열리면 이곳에 보여요.</div>`; }
+    else list.innerHTML = cls.map((c) => {
+      const d = new Date(c.date + "T00:00:00"), full = remain(c) === 0;
+      return `<button type="button" class="cls" data-id="${esc(c.id)}" aria-pressed="${S.selected === c.id}" aria-disabled="${full}">
+        <span class="date"><span>${d.getMonth()+1}월</span><b>${d.getDate()}</b><span>${DOW[d.getDay()]}요일</span></span>
+        <span><span class="t">${esc(c.title)}</span><br>
+        <span class="m">${esc(c.time)}–${esc(endTime(c.time, c.duration))} · ${esc(c.level || "누구나")} · ${won(c.price)}</span><br>
+        <span class="m seats">${full ? '<span class="pill p-canceled">마감</span>' : `남은 자리 ${remain(c)} / ${esc(c.capacity)}명`}</span></span>
+      </button>`;
+    }).join("");
+    // select options
+    const sel = $("#f-class"), cur = sel.value;
+    sel.innerHTML = `<option value="">클래스를 선택하세요</option>` + cls.map((c) =>
+      `<option value="${esc(c.id)}" ${remain(c) === 0 ? "disabled" : ""}>${esc(fmtDate(c.date))} ${esc(c.time)} · ${esc(c.title)}${remain(c) === 0 ? " (마감)" : ""}</option>`).join("");
+    if (cls.some((c) => c.id === cur)) sel.value = cur; else if (S.selected && cls.some((c) => c.id === S.selected)) sel.value = S.selected;
+    renderDetail();
+  }
+  $("#classList").addEventListener("click", (e) => {
+    const b = e.target.closest(".cls"); if (!b) return;
+    const c = classById(b.dataset.id);
+    if (!c) return;
+    if (remain(c) === 0) { toast("정원이 모두 찬 클래스예요."); return; }
+    S.selected = c.id; $("#f-class").value = c.id; renderClassList();
+    if (matchMedia("(max-width:820px)").matches) $("#classDetail").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  $("#f-class").addEventListener("change", (e) => { S.selected = e.target.value || null; renderClassList(); });
+
+  function renderDetail() {
+    const box = $("#classDetail"), c = classById(S.selected);
+    if (!c) { box.hidden = true; $("#priceLine").textContent = "클래스를 고르면 수강료가 표시돼요."; return; }
+    box.hidden = false;
+    $("#priceLine").textContent = `수강료 ${won(c.price)}을 입금한 뒤 체크해 주세요.`;
+    box.innerHTML = `<div><span class="label">선택한 클래스</span><h3>${esc(c.title)}</h3></div>
+      <dl class="facts">
+        <div><dt>일시</dt><dd>${esc(fmtDate(c.date))}<br>${esc(c.time)}–${esc(endTime(c.time, c.duration))} (${esc(c.duration)}분)</dd></div>
+        <div><dt>장소</dt><dd>${esc(c.place || "추후 안내")}</dd></div>
+        <div><dt>강사 · 난이도</dt><dd>${esc(c.teacher || "-")} · ${esc(c.level || "누구나")}</dd></div>
+        <div><dt>수강료 · 정원</dt><dd>${won(c.price)} · ${esc(c.capacity)}명</dd></div>
+      </dl>
+      ${c.desc ? `<div class="box"><span class="label">클래스 소개</span>${esc(c.desc)}</div>` : ""}
+      ${c.bring ? `<div class="box"><span class="label">준비물</span>${esc(c.bring)}</div>` : ""}
+      ${c.notice ? `<div class="box caution"><span class="label">주의사항</span>${esc(c.notice)}</div>` : ""}`;
+  }
+
+  // ---------- apply form ----------
+  const F = (id) => $("#f-" + id);
+  F("phone").addEventListener("input", (e) => { e.target.value = fmtPhone(e.target.value); });
+  F("same").addEventListener("change", (e) => { if (e.target.checked) F("depositor").value = F("name").value.trim(); F("depositor").readOnly = e.target.checked; });
+  F("name").addEventListener("input", () => { if (F("same").checked) F("depositor").value = F("name").value.trim(); });
+
+  function setErr(form, key, msg) { const el = form.querySelector(`[data-err="${key}"]`); if (el) el.textContent = msg || ""; }
+  function validate(form, v) {
+    const errs = {};
+    if (!v.classId) errs.classId = "신청할 클래스를 선택해 주세요.";
+    if (!v.name) errs.name = "이름을 입력해 주세요.";
+    if (!phoneOk(v.phone)) errs.phone = "010-0000-0000 형식으로 입력해 주세요.";
+    if (!v.consent) errs.consent = "연락을 위해 개인정보 수집 동의가 필요해요.";
+    if (!v.paid) errs.paid = "입금 후 체크해 주세요.";
+    if (!v.depositor) errs.depositor = "입금자명을 입력해 주세요.";
+    ["classId","name","phone","consent","paid","depositor"].forEach((k) => setErr(form, k, errs[k]));
+    return Object.keys(errs).length === 0;
+  }
+
+  $("#applyForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const v = { classId: F("class").value, name: F("name").value.trim(), phone: F("phone").value.trim(), consent: F("consent").checked,
+      paid: F("paid").checked, depositor: F("depositor").value.trim(), sameAsName: F("same").checked, health: F("health").value.trim(), expect: F("expect").value.trim() };
+    $("#formErr").textContent = "";
+    if (!validate(form, v)) { form.querySelector(".err:not(:empty)")?.previousElementSibling?.focus?.(); return; }
+    if (!S.db || !S.uid) { $("#formErr").textContent = "로그인한 상태에서만 신청할 수 있어요. claude.ai에 로그인한 뒤 다시 열어 주세요."; return; }
+    const c = classById(v.classId);
+    if (!c || remain(c) === 0) { $("#formErr").textContent = "이 클래스는 정원이 찼어요. 다른 클래스를 선택해 주세요."; return; }
+    const id = "a" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const now = Date.now();
+    const item = { ...v, id, classTitle: c.title, classDate: c.date, classTime: c.time, status: "pending", createdAt: now, updatedAt: now };
+    const btn = $("#submitBtn"); btn.disabled = true; btn.textContent = "보내는 중…";
+    try {
+      const ref = S.db.doc("apps/" + S.uid);
+      const snap = await ref.get();
+      if (snap.exists) await ref.update({ items: { [id]: item }, uid: S.uid, updatedAt: now });
+      else await ref.set({ uid: S.uid, items: { [id]: item }, updatedAt: now });
+      form.reset(); F("depositor").readOnly = false; S.selected = null; renderClassList();
+      toast("신청을 받았어요. 입금 확인 후 확정해 드릴게요.");
+      location.hash = "#my";
+    } catch (err) {
+      $("#formErr").textContent = "신청을 저장하지 못했어요. 잠시 후 다시 시도해 주세요. (" + (err.code || err.message) + ")";
+    } finally { btn.disabled = false; btn.textContent = "신청하기"; }
+  });
+
+  // ---------- my applications ----------
+  function renderMy() {
+    const box = $("#myApps");
+    if (!S.db || !S.uid) { box.innerHTML = `<div class="empty">로그인한 상태에서 내 신청 내역을 볼 수 있어요.</div>`; return; }
+    const items = Object.values(S.myItems || {}).sort((a, b) => b.createdAt - a.createdAt);
+    if (!items.length) { box.innerHTML = `<div class="empty">아직 신청한 클래스가 없어요.<br><a href="#apply">클래스 신청하러 가기</a></div>`; return; }
+    box.innerHTML = items.map((it) => S.editing === it.id ? editCard(it) : viewCard(it)).join("");
+  }
+  function viewCard(it) {
+    const c = classById(it.classId);
+    return `<article class="app" data-id="${esc(it.id)}">
+      <div class="app-head"><h3>${esc(c?.title || it.classTitle)}</h3><span class="pill p-${esc(it.status)}">${STATUS[it.status] || it.status}</span></div>
+      <dl class="kv">
+        <dt>일시</dt><dd>${esc(fmtDate(c?.date || it.classDate))} ${esc(c?.time || it.classTime || "")}</dd>
+        ${c?.place ? `<dt>장소</dt><dd>${esc(c.place)}</dd>` : ""}
+        <dt>이름</dt><dd>${esc(it.name)}</dd>
+        <dt>연락처</dt><dd>${esc(it.phone)}</dd>
+        <dt>입금자명</dt><dd>${esc(it.depositor)} · 입금 완료 체크</dd>
+        <dt>건강 · 부상</dt><dd>${esc(it.health || "없음")}</dd>
+        <dt>기대하는 것</dt><dd>${esc(it.expect || "-")}</dd>
+        <dt>신청일</dt><dd>${esc(fmtTs(it.createdAt))}${it.updatedAt !== it.createdAt ? ` · 수정 ${esc(fmtTs(it.updatedAt))}` : ""}</dd>
+      </dl>
+      ${it.status === "confirmed" ? `<p class="box" style="margin:0">신청이 확정되었어요. ${c?.notice ? "아래 주의사항을 한 번 더 확인해 주세요." : "수업에서 만나요."}</p>${c?.notice ? `<p class="box caution" style="margin:0">${esc(c.notice)}</p>` : ""}` : ""}
+      ${it.status !== "canceled" ? `<div class="actions" data-confirm-zone>
+        <button type="button" class="btn small" data-act="edit">수정하기</button>
+        <button type="button" class="btn small bad" data-act="ask-cancel">신청 취소</button></div>` : `<p class="sub" style="margin:0">취소된 신청이에요. 환불은 운영자가 연락드려요.</p>`}
+    </article>`;
+  }
+  function editCard(it) {
+    const locked = it.status === "confirmed";
+    const opts = openClasses().map((c) => `<option value="${esc(c.id)}" ${c.id === it.classId ? "selected" : ""} ${remain(c) === 0 && c.id !== it.classId ? "disabled" : ""}>${esc(fmtDate(c.date))} ${esc(c.time)} · ${esc(c.title)}</option>`).join("");
+    const hasCur = openClasses().some((c) => c.id === it.classId);
+    return `<article class="app" data-id="${esc(it.id)}"><form class="editForm" novalidate>
+      <div class="app-head"><h3>신청 수정</h3><span class="pill p-${esc(it.status)}">${STATUS[it.status]}</span></div>
+      <div class="field"><label for="e-class">신청 클래스<span class="req">*</span></label>
+        <select id="e-class" ${locked ? "disabled" : ""}>${hasCur ? "" : `<option value="${esc(it.classId)}" selected>${esc(it.classTitle)}</option>`}${opts}</select>
+        ${locked ? `<span class="sub" style="margin:0">확정된 신청은 클래스를 바꿀 수 없어요. 운영자에게 문의해 주세요.</span>` : ""}
+        <div class="err" data-err="classId"></div></div>
+      <div class="row2">
+        <div class="field"><label for="e-name">이름<span class="req">*</span></label><input type="text" id="e-name" value="${esc(it.name)}" ${locked ? "readonly" : ""}><div class="err" data-err="name"></div></div>
+        <div class="field"><label for="e-phone">연락처<span class="req">*</span></label><input type="tel" id="e-phone" inputmode="numeric" value="${esc(it.phone)}"><div class="err" data-err="phone"></div></div>
+      </div>
+      <div class="field"><label for="e-depositor">입금자명<span class="req">*</span></label><input type="text" id="e-depositor" value="${esc(it.depositor)}" ${locked ? "readonly" : ""}><div class="err" data-err="depositor"></div></div>
+      <div class="field"><label for="e-health">건강상의 이슈 · 부상<span class="opt">선택</span></label><textarea id="e-health">${esc(it.health)}</textarea></div>
+      <div class="field"><label for="e-expect">기대하는 것<span class="opt">선택</span></label><textarea id="e-expect">${esc(it.expect)}</textarea></div>
+      <div class="err" data-err="save"></div>
+      <div class="actions"><button type="submit" class="btn primary">저장하기</button><button type="button" class="btn" data-act="cancel-edit">그만두기</button></div>
+    </form></article>`;
+  }
+  $("#myApps").addEventListener("input", (e) => { if (e.target.id === "e-phone") e.target.value = fmtPhone(e.target.value); });
+  $("#myApps").addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-act]"); if (!b) return;
+    const id = b.closest(".app").dataset.id, act = b.dataset.act;
+    if (act === "edit") { S.editing = id; renderMy(); return; }
+    if (act === "cancel-edit") { S.editing = null; renderMy(); return; }
+    if (act === "ask-cancel") {
+      b.parentElement.innerHTML = `<span class="sub" style="margin:0">정말 취소할까요?</span><button type="button" class="btn small bad" data-act="do-cancel">네, 취소할게요</button><button type="button" class="btn small" data-act="keep">아니요</button>`;
+      return;
+    }
+    if (act === "keep") { renderMy(); return; }
+    if (act === "do-cancel") {
+      b.disabled = true;
+      try { await S.db.doc("apps/" + S.uid).update({ items: { [id]: { status: "canceled", updatedAt: Date.now(), canceledBy: "applicant" } } }); toast("신청을 취소했어요."); }
+      catch (err) { toast("취소하지 못했어요. 다시 시도해 주세요."); renderMy(); }
+    }
+  });
+  $("#myApps").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target, card = form.closest(".app"), id = card.dataset.id, it = S.myItems[id];
+    const v = { classId: form.querySelector("#e-class").value, name: form.querySelector("#e-name").value.trim(), phone: form.querySelector("#e-phone").value.trim(),
+      depositor: form.querySelector("#e-depositor").value.trim(), health: form.querySelector("#e-health").value.trim(), expect: form.querySelector("#e-expect").value.trim() };
+    if (!validate(form, { ...v, consent: true, paid: true })) return;
+    const patch = { phone: v.phone, health: v.health, expect: v.expect, updatedAt: Date.now() };
+    if (it.status !== "confirmed") {
+      Object.assign(patch, { name: v.name, depositor: v.depositor, classId: v.classId });
+      const c = classById(v.classId); if (c) Object.assign(patch, { classTitle: c.title, classDate: c.date, classTime: c.time });
+    }
+    try { await S.db.doc("apps/" + S.uid).update({ items: { [id]: patch } }); S.editing = null; renderMy(); toast("수정한 내용을 저장했어요."); }
+    catch (err) { setErr(form, "save", "저장하지 못했어요. 잠시 후 다시 시도해 주세요."); }
+  });
+
+  // ---------- admin: apps ----------
+  $("#st-apps").addEventListener("click", () => setAdmTab("apps"));
+  $("#st-classes").addEventListener("click", () => setAdmTab("classes"));
+  function setAdmTab(t) { S.admTab = t; $("#st-apps").setAttribute("aria-pressed", t === "apps"); $("#st-classes").setAttribute("aria-pressed", t === "classes"); $("#adm-apps").hidden = t !== "apps"; $("#adm-classes").hidden = t !== "classes"; }
+  ["#flt-class", "#flt-status", "#flt-q"].forEach((s) => $(s).addEventListener("input", renderAdminApps));
+
+  function renderAdminApps() {
+    const all = S.allApps;
+    const cnt = (st) => all.filter((a) => a.status === st).length;
+    $("#stats").innerHTML = `<div><b>${all.length}</b><span>전체 신청</span></div><div><b>${cnt("pending")}</b><span>확정 대기</span></div><div><b>${cnt("confirmed")}</b><span>확정</span></div><div><b>${cnt("canceled")}</b><span>취소</span></div>`;
+    const fc = $("#flt-class"), cur = fc.value;
+    fc.innerHTML = `<option value="">모든 클래스</option>` + [...S.classes].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)).map((c) => `<option value="${esc(c.id)}">${esc(fmtDate(c.date))} · ${esc(c.title)}</option>`).join("");
+    fc.value = cur;
+    const st = $("#flt-status").value, q = $("#flt-q").value.trim().toLowerCase();
+    const rows = all.filter((a) => (!cur || a.classId === cur) && (!st || a.status === st) &&
+      (!q || [a.name, a.phone, a.depositor].some((x) => String(x || "").toLowerCase().includes(q)))).sort((a, b) => b.createdAt - a.createdAt);
+    $("#admRows").innerHTML = rows.length ? rows.map((a) => {
+      const c = classById(a.classId);
+      return `<tr data-uid="${esc(a._uid)}" data-id="${esc(a.id)}">
+        <td class="num">${esc(fmtTs(a.createdAt))}</td>
+        <td>${esc(c?.title || a.classTitle)}<br><span class="memo">${esc(fmtDate(c?.date || a.classDate))} ${esc(c?.time || a.classTime || "")}</span></td>
+        <td>${esc(a.name)}</td>
+        <td class="num">${esc(a.phone)}</td>
+        <td>${esc(a.depositor)}${a.depositor !== a.name ? ' <span class="pill p-closed">이름 다름</span>' : ""}</td>
+        <td><div class="memo">${a.health ? "⚠ " + esc(a.health) : "건강 이슈 없음"}${a.expect ? "\n· " + esc(a.expect) : ""}</div></td>
+        <td><span class="pill p-${esc(a.status)}">${STATUS[a.status]}</span></td>
+        <td><div class="actions">${
+          a.status === "pending" ? `<button class="btn small ok" data-set="confirmed">확정</button><button class="btn small bad" data-set="canceled">취소</button>` :
+          a.status === "confirmed" ? `<button class="btn small" data-set="pending">확정 해제</button>` :
+          `<button class="btn small" data-set="pending">대기로 복구</button>`}</div></td></tr>`;
+    }).join("") : `<tr><td colspan="8" class="memo">${all.length ? "조건에 맞는 신청이 없어요." : "아직 들어온 신청이 없어요. 신청 페이지 링크를 공유해 보세요."}</td></tr>`;
+  }
+  $("#admRows").addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-set]"); if (!b) return;
+    const tr = b.closest("tr"), uid = tr.dataset.uid, id = tr.dataset.id, next = b.dataset.set;
+    const a = S.allApps.find((x) => x._uid === uid && x.id === id); if (!a) return;
+    const c = classById(a.classId);
+    if (next === "confirmed" && c) {
+      const confirmed = S.allApps.filter((x) => x.classId === c.id && x.status === "confirmed").length;
+      if (confirmed >= Number(c.capacity)) { toast("정원이 모두 찼어요. 정원을 늘리거나 다른 확정을 해제해 주세요."); return; }
+    }
+    tr.querySelectorAll("button").forEach((x) => (x.disabled = true));
+    try {
+      await S.db.doc("apps/" + uid).update({ items: { [id]: { status: next, updatedAt: Date.now(), ...(next === "canceled" ? { canceledBy: "admin" } : {}) } } });
+      a.status = next;
+      if (c) await syncCount(c.id);
+      toast(next === "confirmed" ? `${a.name}님 신청을 확정했어요.` : next === "canceled" ? "신청을 취소 처리했어요." : "확정 대기로 돌렸어요.");
+    } catch (err) { toast("상태를 바꾸지 못했어요. (" + (err.code || err.message) + ")"); renderAdminApps(); }
+  });
+  async function syncCount(classId) {
+    const c = classById(classId); if (!c) return;
+    const n = S.allApps.filter((x) => x.classId === classId && x.status === "confirmed").length;
+    if (Number(c.confirmedCount || 0) !== n) await S.db.doc("classes/" + classId).update({ confirmedCount: n });
+  }
+
+  // ---------- admin: classes ----------
+  const C = (id) => $("#c-" + id);
+  function fillClassForm(c) {
+    S.editClass = c ? c.id : null;
+    C("title").value = c?.title || ""; C("date").value = c?.date || ""; C("time").value = c?.time || "";
+    C("dur").value = c?.duration ?? 60; C("cap").value = c?.capacity ?? 8; C("price").value = c?.price ?? 25000;
+    C("level").value = c?.level || "누구나"; C("place").value = c?.place || ""; C("teacher").value = c?.teacher || "";
+    C("desc").value = c?.desc || ""; C("bring").value = c?.bring || ""; C("notice").value = c?.notice || ""; C("open").checked = c ? !!c.open : true;
+    $("#cfTitle").textContent = c ? "클래스 수정" : "새 클래스 열기";
+    $("#cfSubmit").textContent = c ? "수정 저장" : "클래스 열기";
+    $("#cfCancel").hidden = !c; $("#cfErr").textContent = "";
+  }
+  $("#cfCancel").addEventListener("click", () => fillClassForm(null));
+  $("#classForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const v = { title: C("title").value.trim(), date: C("date").value, time: C("time").value, duration: Number(C("dur").value) || 60,
+      capacity: Number(C("cap").value), price: Number(C("price").value), level: C("level").value, place: C("place").value.trim(),
+      teacher: C("teacher").value.trim(), desc: C("desc").value.trim(), bring: C("bring").value.trim(), notice: C("notice").value.trim(), open: C("open").checked };
+    const miss = [];
+    if (!v.title) miss.push("클래스 이름"); if (!v.date) miss.push("날짜"); if (!v.time) miss.push("시작 시간");
+    if (!(v.capacity >= 1)) miss.push("정원"); if (!(v.price >= 0) || C("price").value === "") miss.push("수강료");
+    if (miss.length) { $("#cfErr").textContent = miss.join(", ") + "을(를) 입력해 주세요."; return; }
+    const btn = $("#cfSubmit"); btn.disabled = true;
+    try {
+      if (S.editClass) { await S.db.doc("classes/" + S.editClass).update({ ...v, updatedAt: Date.now() }); toast("클래스 정보를 고쳤어요."); }
+      else { const ref = S.db.collection("classes").doc(); await ref.set({ ...v, id: ref.id, confirmedCount: 0, createdAt: Date.now() }); toast("클래스를 열었어요. 신청 페이지에 보여요."); }
+      fillClassForm(null);
+    } catch (err) { $("#cfErr").textContent = "저장하지 못했어요. 관리 권한이 있는지 확인해 주세요. (" + (err.code || err.message) + ")"; }
+    finally { btn.disabled = false; }
+  });
+  function renderAdminClasses() {
+    const box = $("#admClasses");
+    const list = [...S.classes].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+    if (!list.length) { box.innerHTML = `<div class="empty">아직 연 클래스가 없어요. 위 양식으로 첫 클래스를 열어 보세요.</div>`; return; }
+    box.innerHTML = list.map((c) => {
+      const apps = S.allApps.filter((a) => a.classId === c.id && a.status !== "canceled").length;
+      return `<div class="adm-class" data-id="${esc(c.id)}">
+        <div class="info"><span class="pill ${c.open ? "p-open" : "p-closed"}">${c.open ? "신청 받는 중" : "닫힘"}</span>
+          <strong style="font-family:var(--display);margin-left:6px">${esc(c.title)}</strong><br>
+          <span class="memo">${esc(fmtDate(c.date))} ${esc(c.time)}–${esc(endTime(c.time, c.duration))} · ${won(c.price)} · <span class="seats">확정 ${esc(c.confirmedCount || 0)} / 정원 ${esc(c.capacity)} · 신청 ${apps}건</span></span></div>
+        <div class="actions">
+          <button class="btn small" data-c="edit">수정</button>
+          <button class="btn small" data-c="toggle">${c.open ? "신청 닫기" : "신청 열기"}</button>
+          <button class="btn small" data-c="apps">신청 보기</button>
+          <button class="btn small bad" data-c="ask-del">삭제</button>
+        </div></div>`;
+    }).join("");
+  }
+  $("#admClasses").addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-c]"); if (!b) return;
+    const id = b.closest(".adm-class").dataset.id, c = classById(id), act = b.dataset.c;
+    if (act === "edit") { fillClassForm(c); $("#classForm").scrollIntoView({ behavior: "smooth" }); }
+    if (act === "apps") { $("#flt-class").value = id; setAdmTab("apps"); renderAdminApps(); }
+    if (act === "toggle") { try { await S.db.doc("classes/" + id).update({ open: !c.open }); toast(c.open ? "신청을 닫았어요." : "신청을 열었어요."); } catch (err) { toast("바꾸지 못했어요."); } }
+    if (act === "ask-del") b.parentElement.innerHTML = `<span class="memo">신청 내역은 남고 클래스만 지워져요.</span><button class="btn small bad" data-c="del">삭제</button><button class="btn small" data-c="no">그만두기</button>`;
+    if (act === "no") renderAdminClasses();
+    if (act === "del") { try { await S.db.doc("classes/" + id).delete(); toast("클래스를 삭제했어요."); } catch (err) { toast("삭제하지 못했어요."); } }
+  });
+
+  function renderAll() { renderClassList(); renderMy(); if (S.isAdmin) { renderAdminApps(); renderAdminClasses(); } }
+
+  // ---------- boot ----------
+  async function boot() {
+    if (!window.claude?.use) { notice("이 화면에서는 신청을 저장할 수 없어요. 게시된 페이지에서 열어 주세요."); renderAll(); return; }
+    const [db, user] = await Promise.all([claude.use("db"), claude.use("user")]);
+    S.db = db;
+    if (!db) { notice("claude.ai에 로그인해야 클래스를 신청하고 내역을 볼 수 있어요."); renderAll(); return; }
+    S.uid = user ? await user.id() : null;
+    S.isAdmin = user ? await user.canEdit() : false;
+    $("#tab-admin").hidden = !S.isAdmin; route();
+
+    const slow = setTimeout(() => notice("데이터를 아직 불러오지 못했어요. 연결 상태를 확인해 주세요."), 10000);
+    db.collection("classes").onSnapshot((snap) => {
+      if (!snap.metadata.fromCache) { clearTimeout(slow); notice(""); }
+      S.classes = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
+      renderAll();
+    }, (err) => { clearTimeout(slow); notice("클래스 일정을 불러오지 못했어요. (" + err.code + ")"); });
+
+    if (S.uid) db.doc("apps/" + S.uid).onSnapshot((snap) => {
+      S.myItems = snap.exists ? (snap.data().items || {}) : {};
+      renderMy();
+    }, () => renderMy());
+
+    if (S.isAdmin) db.collection("apps").onSnapshot((snap) => {
+      S.allApps = snap.docs.flatMap((d) => Object.values(d.data().items || {}).map((it) => ({ ...it, _uid: d.id })));
+      renderAdminApps(); renderAdminClasses();
+    }, (err) => toast("신청 목록을 불러오지 못했어요. (" + err.code + ")"));
+  }
+  boot();
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,238 @@
+"""
+직원 3교대(D/E/N) 근무 스케줄 자동 생성기 → Excel(xlsx)
+
+사용법:
+    pip install openpyxl
+    python shift_schedule.py                                  # 이번 달 생성
+    python shift_schedule.py --year 2026 --month 12 --out 12월_근무표.xlsx
+
+규칙 (아래 CONFIG에서 수정 가능):
+  - 매일 D(주간)/E(저녁)/N(야간) 필요 인원 충족
+  - 역순환 금지: N 다음날 D·E 불가, E 다음날 D 불가
+  - 최대 연속 근무일, 최대 연속 야간 제한 (야간 블록 후 자동 휴무)
+  - 근무 횟수가 적은 직원부터 배정해 공정하게 분배
+"""
+import argparse
+import calendar
+import random
+from datetime import date
+
+from openpyxl import Workbook
+from openpyxl.formatting.rule import CellIsRule
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
+
+# ============================== 설정 ==============================
+CONFIG = {
+    "employees": ["김민수", "이서연", "박지훈", "최유진", "정다은",
+                  "강현우", "윤소희", "임재현", "한지민", "오세훈"],
+    "required": {"D": 2, "E": 2, "N": 2},   # 하루 교대별 필요 인원
+    "max_consecutive_work": 5,              # 최대 연속 근무일
+    "max_consecutive_night": 3,             # 최대 연속 야간
+    "seed": 42,                             # 같은 값이면 같은 결과
+}
+
+SHIFTS = {  # 코드: (이름, 시간, 배경색)
+    "D": ("주간", "07:00-15:00", "FFF2CC"),
+    "E": ("저녁", "15:00-23:00", "DDEBF7"),
+    "N": ("야간", "23:00-07:00", "D9D2E9"),
+    "OFF": ("휴무", "-", "F2F2F2"),
+}
+WORK = ("D", "E", "N")
+WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
+FORBIDDEN_NEXT = {"N": {"D", "E"}, "E": {"D"}}  # 오늘 → 내일 불가 근무
+# ==================================================================
+
+
+def generate(year, month, cfg):
+    """{직원: [일별 근무코드]}, 일수, 인원 부족 목록 반환"""
+    rng = random.Random(cfg["seed"])
+    emps, req = cfg["employees"], cfg["required"]
+    days = calendar.monthrange(year, month)[1]
+    if sum(req.values()) > len(emps):
+        raise ValueError("하루 필요 인원이 전체 직원 수보다 많습니다.")
+
+    sched = {e: [] for e in emps}
+    count = {e: {s: 0 for s in SHIFTS} for e in emps}
+    shortages = []
+
+    def streak(e, kinds):
+        n = 0
+        for s in reversed(sched[e]):
+            if s not in kinds:
+                break
+            n += 1
+        return n
+
+    def can_work(e, shift):
+        prev = sched[e][-1] if sched[e] else None
+        if prev and shift in FORBIDDEN_NEXT.get(prev, ()):
+            return False
+        if streak(e, WORK) >= cfg["max_consecutive_work"]:
+            return False
+        if shift == "N" and streak(e, {"N"}) >= cfg["max_consecutive_night"]:
+            return False
+        return True
+
+    for d in range(days):
+        today = {}
+        for shift in ("N", "E", "D"):  # 제약이 강한 야간부터 배정
+            cands = [e for e in emps if e not in today and can_work(e, shift)]
+            cands.sort(key=lambda e: (
+                # 야간은 전날 야간자를 이어 붙여 블록 근무로 (잦은 전환 방지)
+                0 if shift == "N" and sched[e] and sched[e][-1] == "N" else 1,
+                sum(count[e][s] for s in WORK),   # 총 근무 적은 사람 우선
+                count[e][shift],                  # 해당 근무 적은 사람 우선
+                rng.random(),
+            ))
+            picked = cands[:req[shift]]
+            if len(picked) < req[shift]:
+                shortages.append((d + 1, shift, req[shift] - len(picked)))
+            for e in picked:
+                today[e] = shift
+        for e in emps:
+            s = today.get(e, "OFF")
+            sched[e].append(s)
+            count[e][s] += 1
+    return sched, days, shortages
+
+
+def write_xlsx(year, month, cfg, sched, days, shortages, path):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "근무표"
+
+    F = "맑은 고딕"
+    thin = Side(style="thin", color="BFBFBF")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    center = Alignment(horizontal="center", vertical="center")
+    head_fill = PatternFill("solid", fgColor="1F3864")
+    head_font = Font(name=F, bold=True, color="FFFFFF")
+    emps = cfg["employees"]
+
+    first_day_col = 2
+    last_day_col = first_day_col + days - 1
+    sum_cols = ["D", "E", "N", "OFF", "총근무"]
+
+    # 제목
+    ws.cell(1, 1, f"{year}년 {month}월 3교대 근무표").font = Font(name=F, bold=True, size=14)
+    ws.cell(2, 1, "근무코드: D=주간(07-15)  E=저녁(15-23)  N=야간(23-07)  OFF=휴무  "
+                  "| 셀을 직접 고치면 집계가 자동 갱신됩니다.").font = Font(name=F, size=9, color="595959")
+
+    # 헤더 (4행: 날짜, 5행: 요일)
+    hr, wr = 4, 5
+    for r in (hr, wr):
+        c = ws.cell(r, 1, "직원" if r == hr else "")
+        c.fill, c.font, c.alignment, c.border = head_fill, head_font, center, border
+    ws.merge_cells(start_row=hr, start_column=1, end_row=wr, end_column=1)
+
+    for d in range(1, days + 1):
+        col = first_day_col + d - 1
+        wd = date(year, month, d).weekday()
+        color = "FF6B6B" if wd == 6 else ("9DC3E6" if wd == 5 else "FFFFFF")
+        for r, v in ((hr, d), (wr, WEEKDAYS[wd])):
+            c = ws.cell(r, col, v)
+            c.fill, c.alignment, c.border = head_fill, center, border
+            c.font = Font(name=F, bold=True, color=color)
+        ws.column_dimensions[get_column_letter(col)].width = 4.6
+
+    for i, name in enumerate(sum_cols):
+        col = last_day_col + 1 + i
+        c = ws.cell(hr, col, name)
+        c.fill = PatternFill("solid", fgColor="2F5597")
+        c.font, c.alignment, c.border = head_font, center, border
+        ws.merge_cells(start_row=hr, start_column=col, end_row=wr, end_column=col)
+        ws.column_dimensions[get_column_letter(col)].width = 7
+
+    # 직원별 근무 + 개인 집계(수식)
+    start = wr + 1
+    for i, e in enumerate(emps):
+        r = start + i
+        c = ws.cell(r, 1, e)
+        c.font, c.alignment, c.border = Font(name=F, bold=True), center, border
+        for d, s in enumerate(sched[e]):
+            c = ws.cell(r, first_day_col + d, s)
+            c.font, c.alignment, c.border = Font(name=F, size=9), center, border
+        rng_ref = f"${get_column_letter(first_day_col)}{r}:${get_column_letter(last_day_col)}{r}"
+        for j, code in enumerate(["D", "E", "N", "OFF"]):
+            c = ws.cell(r, last_day_col + 1 + j, f'=COUNTIF({rng_ref},"{code}")')
+            c.font, c.alignment, c.border = Font(name=F), center, border
+        tot_l = get_column_letter(last_day_col + 1)
+        tot_r = get_column_letter(last_day_col + 3)
+        c = ws.cell(r, last_day_col + 5, f"=SUM({tot_l}{r}:{tot_r}{r})")
+        c.font, c.alignment, c.border = Font(name=F, bold=True), center, border
+    end = start + len(emps) - 1
+
+    # 일별 인원 집계(수식) + 부족 시 빨간색
+    br = end + 2
+    red = PatternFill("solid", fgColor="F8CBAD")
+    for k, code in enumerate(WORK):
+        r = br + k
+        c = ws.cell(r, 1, f"{code} 인원 (필요 {cfg['required'][code]})")
+        c.font = Font(name=F, bold=True, size=9)
+        c.fill = PatternFill("solid", fgColor=SHIFTS[code][2])
+        c.border = border
+        for d in range(days):
+            col_l = get_column_letter(first_day_col + d)
+            c = ws.cell(r, first_day_col + d, f'=COUNTIF({col_l}{start}:{col_l}{end},"{code}")')
+            c.font, c.alignment, c.border = Font(name=F, size=9), center, border
+        rng_ref = f"{get_column_letter(first_day_col)}{r}:{get_column_letter(last_day_col)}{r}"
+        ws.conditional_formatting.add(
+            rng_ref, CellIsRule(operator="lessThan", formula=[str(cfg["required"][code])], fill=red))
+
+    # 근무코드 색상 (조건부 서식 → 직접 수정해도 색 유지)
+    grid = f"{get_column_letter(first_day_col)}{start}:{get_column_letter(last_day_col)}{end}"
+    for code, (_, _, color) in SHIFTS.items():
+        ws.conditional_formatting.add(grid, CellIsRule(
+            operator="equal", formula=[f'"{code}"'],
+            fill=PatternFill("solid", fgColor=color), font=Font(name=F, size=9, bold=code == "N")))
+
+    ws.column_dimensions["A"].width = 16
+    ws.freeze_panes = ws.cell(start, first_day_col)
+    ws.page_setup.orientation = "landscape"
+    ws.page_setup.fitToWidth = 1
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+    # ---- 설정 시트 ----
+    st = wb.create_sheet("설정·범례")
+    rows = [("근무코드", "이름", "시간", "하루 필요 인원")]
+    for code, (nm, tm, _) in SHIFTS.items():
+        rows.append((code, nm, tm, cfg["required"].get(code, "-")))
+    rows += [(), ("규칙", "값"),
+             ("최대 연속 근무일", cfg["max_consecutive_work"]),
+             ("최대 연속 야간", cfg["max_consecutive_night"]),
+             ("역순환 금지", "N→D/E, E→D 불가"),
+             ("랜덤 시드", cfg["seed"]),
+             (), ("인원 부족 내역", "")]
+    rows += [(f"{d}일", f"{s} {n}명 부족") for d, s, n in shortages] or [("없음", "")]
+    for r, row in enumerate(rows, 1):
+        for c, v in enumerate(row, 1):
+            cell = st.cell(r, c, v)
+            cell.font = Font(name=F, bold=(r == 1 or v in ("규칙", "인원 부족 내역")))
+            if r == 1 or v in ("규칙", "인원 부족 내역"):
+                cell.fill = PatternFill("solid", fgColor="D9E1F2")
+            if r in range(2, 6) and c == 1:
+                cell.fill = PatternFill("solid", fgColor=SHIFTS[v][2])
+    for col, w in zip("ABCD", (18, 18, 14, 14)):
+        st.column_dimensions[col].width = w
+
+    wb.save(path)
+
+
+def main():
+    today = date.today()
+    p = argparse.ArgumentParser(description="3교대 근무표 생성기")
+    p.add_argument("--year", type=int, default=today.year)
+    p.add_argument("--month", type=int, default=today.month)
+    p.add_argument("--out", default=None)
+    a = p.parse_args()
+    out = a.out or f"근무표_{a.year}_{a.month:02d}.xlsx"
+
+    sched, days, shortages = generate(a.year, a.month, CONFIG)
+    write_xlsx(a.year, a.month, CONFIG, sched, days, shortages, out)
+    print(f"생성 완료: {out}")
+    print("인원 부족:", shortages if shortages else "없음")
+
+
+if __name__ == "__main__":
+    main()
